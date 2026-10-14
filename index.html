@@ -1,0 +1,933 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Simulator Wiring Sistem Penerangan</title>
+<style>
+*{box-sizing:border-box}
+html,body{margin:0;background:#171c25;color:#e8ecf2;font-family:system-ui,-apple-system,"Segoe UI",Roboto,Arial,sans-serif}
+body{min-width:948px}
+.wrap{width:924px;margin:0 auto;padding:12px 0 28px}
+
+/* Toolbar (tetap di kiri layar saat panel digeser di HP) */
+.toolbar{position:sticky;left:0;width:min(924px,100vw);padding:0 10px 10px}
+.toolbar .row{display:flex;flex-wrap:wrap;align-items:center;gap:6px;margin-bottom:7px}
+.toolbar h1{font-size:17px;margin:0 0 2px;letter-spacing:.3px}
+.toolbar h1 .by{font-size:12px;font-weight:400;color:#9fb0c6;letter-spacing:0;white-space:nowrap}
+.toolbar .sub{font-size:12px;color:#9fb0c6;line-height:1.4}
+.lbl{font-size:12px;color:#9fb0c6;margin-right:2px}
+button{font:inherit;font-size:12.5px;color:#e8ecf2;background:#2a3445;border:1px solid #3d4b61;border-radius:8px;padding:6px 10px;cursor:pointer}
+button:hover{background:#34425a}
+button.danger{background:#4a2227;border-color:#74343c}
+button.danger:hover{background:#5d2b31}
+.sw{width:22px;height:22px;border-radius:50%;border:2px solid #0006;cursor:pointer;padding:0}
+.sw.on{outline:2px solid #fff;outline-offset:2px}
+.status{font-size:12px;line-height:1.5;background:#101520;border:1px solid #2a3445;border-radius:8px;padding:7px 10px;color:#cfd8e6}
+.status b{color:#fff}
+.status .warn{color:#ff6b6b;font-weight:700}
+.note{font-size:12px;color:#ffd77a;margin-top:6px;min-height:16px}
+
+/* Panel */
+.panel{display:block;width:924px;height:650px;min-width:924px;margin:0 auto;border-radius:12px;box-shadow:0 10px 30px #0008;font-family:Arial,Helvetica,sans-serif;user-select:none;-webkit-user-select:none}
+.title{font-size:22px;font-weight:700;letter-spacing:1.5px;fill:#1f2a3a}
+.subtitle{font-size:10px;fill:#6b7787;letter-spacing:.6px}
+.footer{font-family:"Courier New",monospace;font-size:12px;fill:#3a4553}
+.cap{font-size:8px;fill:#6b7787;text-anchor:middle;letter-spacing:.5px;pointer-events:none}
+.stat{font-size:8.5px;fill:#425065;text-anchor:middle;font-weight:700;pointer-events:none}
+.fx{transition:opacity .12s linear}
+.ctl{cursor:pointer}
+
+/* Pin */
+.pin{cursor:crosshair;touch-action:none}
+.pin .hit{fill:transparent}
+.pin .halo{fill:#ffe066;opacity:0;transition:opacity .12s}
+.pin .ring{fill:#fff;stroke-width:2.4}
+.pin .label{font-size:11px;fill:#1f2a3a;text-anchor:middle;pointer-events:none;font-weight:600}
+.pin .label.s{font-size:9px}
+.pin.black .ring{stroke:#000}.pin.black .dot{fill:#000}
+.pin.red .ring{stroke:#e00000}.pin.red .dot{fill:#e00000}
+.pin.hot .halo{opacity:.95}
+.pin.bad .halo{opacity:1;fill:#ff3030}
+.pin.sel .halo{opacity:1;fill:#4fc3f7}
+.pin:hover .ring,.pin:hover .dot{transform-box:fill-box;transform-origin:center;transform:scale(1.35)}
+
+/* Kabel */
+.w-hit{fill:none;stroke:transparent;stroke-width:14;pointer-events:none}
+.w-out{fill:none;stroke:#000;stroke-opacity:.35;stroke-width:6.6;stroke-linecap:round;pointer-events:none}
+.w-core{fill:none;stroke-width:4.4;stroke-linecap:round;pointer-events:none}
+.w-shine{fill:none;stroke:#fff;stroke-opacity:.28;stroke-width:1.2;stroke-linecap:round;pointer-events:none;transform:translate(0,-1px)}
+.w-flow{fill:none;stroke:#fff59a;stroke-width:2.2;stroke-linecap:round;stroke-dasharray:5 11;opacity:0;pointer-events:none}
+.wire.live .w-flow{opacity:.95;animation:flow .6s linear infinite}
+.wire.short .w-core{animation:blinkw .35s steps(2) infinite}
+@keyframes flow{to{stroke-dashoffset:-16}}
+@keyframes blinkw{50%{stroke:#ff2d2d}}
+.w-drag{fill:none;stroke:#2a7fd6;stroke-width:3;stroke-dasharray:6 5;stroke-linecap:round;pointer-events:none}
+
+.w-out,.w-core,.w-shine,.w-flow{stroke-linejoin:round}
+#zoomctl{position:fixed;right:10px;bottom:10px;z-index:50;display:flex;align-items:center;gap:6px;background:#101520e6;border:1px solid #2a3445;border-radius:10px;padding:5px 8px;box-shadow:0 4px 14px #0008}
+#zoomctl button{padding:6px 12px;font-size:14px;line-height:1}
+#zoomctl span{min-width:42px;text-align:center;font-size:12px;color:#cfd8e6}
+.help{margin:14px 10px 0;font-size:12.5px;line-height:1.55;color:#b9c6d8;width:min(904px,calc(100vw - 20px));position:sticky;left:10px}
+.help summary{cursor:pointer;color:#fff;font-weight:600}
+.help table{border-collapse:collapse;margin:8px 0;width:100%}
+.help td,.help th{border:1px solid #2f3b50;padding:4px 7px;text-align:left;vertical-align:top}
+.help th{background:#1c2536}
+.help code{background:#101520;padding:1px 5px;border-radius:4px}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="toolbar">
+    <h1>Simulator Sistem Penerangan <span class="by">- by RafkaVL Production</span></h1>
+    <div class="row"><span class="sub">Tarik kabel dari satu pin ke pin lain, atau ketuk pin 1 lalu pin 2. Untuk melepas, ketuk pin 1 lalu pin 2 yang sama lagi (pin 1 ke pin 3 membuat kabel baru). Ketuk komponen (tuas, knob, kunci, sekring, tombol) untuk menggunakannya.</span></div>
+    <div class="row" id="presets"><span class="lbl">Contoh rangkaian:</span></div>
+    <div class="row"><span class="lbl">Warna kabel:</span><span id="colors" style="display:flex;gap:6px"></span>
+      <button id="btnClear" class="danger">Hapus semua kabel</button>
+      <button id="btnReset" class="danger">Reset semua</button></div>
+    <div class="status" id="status"></div>
+    <div class="note" id="note"></div>
+  </div>
+
+  <svg id="panel" class="panel" width="924" height="650" viewBox="0 328 924 650" xmlns="http://www.w3.org/2000/svg">
+    <defs>
+      <linearGradient id="gBoard" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#f6f8fb"/><stop offset="1" stop-color="#dde3ea"/></linearGradient>
+      <linearGradient id="gChrome" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#ffffff"/><stop offset=".35" stop-color="#9aa3ad"/><stop offset=".6" stop-color="#eef1f4"/><stop offset="1" stop-color="#6f7882"/></linearGradient>
+      <linearGradient id="gHousing" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#454c56"/><stop offset="1" stop-color="#1a1e24"/></linearGradient>
+      <linearGradient id="gMetal" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#7b848e"/><stop offset=".3" stop-color="#e9edf1"/><stop offset=".6" stop-color="#aeb6bf"/><stop offset="1" stop-color="#69727c"/></linearGradient>
+      <radialGradient id="gReflect" cx=".5" cy=".5" r=".62"><stop offset="0" stop-color="#ffffff"/><stop offset=".55" stop-color="#cdd4db"/><stop offset="1" stop-color="#7b8590"/></radialGradient>
+      <radialGradient id="gBowl" cx=".4" cy=".35" r=".8"><stop offset="0" stop-color="#ffffff"/><stop offset=".6" stop-color="#c3cad2"/><stop offset="1" stop-color="#7a848f"/></radialGradient>
+      <linearGradient id="gClear" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#f4f7f9"/><stop offset="1" stop-color="#c3ccd4"/></linearGradient>
+      <linearGradient id="gAmberOff" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#d9962a"/><stop offset="1" stop-color="#8d5a10"/></linearGradient>
+      <linearGradient id="gRedOff" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#a62323"/><stop offset="1" stop-color="#5a0e0e"/></linearGradient>
+      <linearGradient id="gButton" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#ff6a5c"/><stop offset="1" stop-color="#a1180f"/></linearGradient>
+      <linearGradient id="gGlass" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#cfe9f5" stop-opacity=".9"/><stop offset=".5" stop-color="#ffffff" stop-opacity=".95"/><stop offset="1" stop-color="#b8d4e2" stop-opacity=".9"/></linearGradient>
+      <radialGradient id="gGlowY"><stop offset="0" stop-color="#ffffff"/><stop offset=".35" stop-color="#fff1a6"/><stop offset="1" stop-color="#ffc400" stop-opacity="0"/></radialGradient>
+      <filter id="blur6" x="-30%" y="-30%" width="160%" height="160%"><feGaussianBlur stdDeviation="6"/></filter>
+      <filter id="shadow" x="-10%" y="-10%" width="125%" height="130%"><feDropShadow dx="0" dy="2" stdDeviation="2" flood-opacity=".35"/></filter>
+    </defs>
+
+    <rect x="0" y="328" width="924" height="650" fill="url(#gBoard)"/>
+    <rect x="3" y="331" width="918" height="644" rx="10" fill="none" stroke="#b9c2cc" stroke-width="1.5"/>
+    <rect x="3" y="965" width="918" height="10" fill="#cfd6de"/>
+    <text class="title" x="70" y="369">SYSTEM PENERANGAN</text>
+    <text class="subtitle" x="72" y="383">SIMULATOR WIRING &#8226; MERAH = (+) &#8226; HITAM = MASSA (E)</text>
+    <text class="footer" x="8" y="975">Smk tunas harapan/Teknik Kendaraan Ringan</text>
+
+    <g id="art"></g>
+    <g id="ctls"></g>
+    <g id="wires"></g>
+    <g id="pins"></g>
+    <g id="drag"></g>
+  </svg>
+
+  <details class="help">
+    <summary>Cara pakai &amp; keterangan komponen</summary>
+    <p><b>Memasang kabel:</b> tarik dari pin ke pin, atau ketuk pin pertama lalu pin kedua. Untuk melepas, ketuk pasangan pin yang sama lagi (pin 1 lalu pin 2); pin 1 lalu pin 3 membuat kabel baru, dan melepasnya dengan cara yang sama. Pin yang bertegangan (+12 V) menyala kuning; kabel yang dialiri ada aliran animasi. Jika +12 V bertemu massa, muncul peringatan <b>KORSLET</b>. <b>Beban baru menyala setelah kabel (+) dan kabel negatif (E) sama-sama terpasang.</b></p>
+    <table>
+      <tr><th>Komponen</th><th>Cara kerja di simulator</th></tr>
+      <tr><td>Fuse/sekring + Baterai</td><td>Kotak BATT: tiga baris pin merah (kiri = INPUT, kanan = OUTPUT) dan baris 15 / B+ (15 = petunjuk input, B+ = petunjuk output) bekerja sama seperti sekring biasa: input dan output satu baris tersambung. Tidak ada yang otomatis bertegangan. Satu-satunya sumber +12 V adalah B+ di pojok kanan bawah. 5 pin baris IG saling terhubung dan hanya bertegangan jika kunci ON dan kunci dikabel dari B+ pojok. Urutan: IG kunci, lalu IG bawah sekring, lalu input sekring.</td></tr>
+      <tr><td>Massa (E)</td><td>Sumber massa: 6 pin hitam kolom kiri dan 5 pin hitam kolom kanan (MASSA). Pin E milik lampu, klakson, flasher, lampu kabut, lampu plat nomor dan motor wiper harus dikabel ke pin massa itu. Selama E belum terpasang, beban tidak menyala.</td></tr>
+      <tr><td>Saklar kombinasi</td><td><b>Tuas kanan:</b> ketuk ujung tuas = putar lampu (OFF / TAIL / HEAD); ketuk badan tuas = sein atas/bawah (netral / kiri / kanan); tombol kecil DIM = tuas dim (N = netral/dekat, J = jauh, T = tembak).<br><b>Tuas kiri:</b> wiper atas/bawah (OFF / LOW / HIGH).<br><b>Kotak segitiga</b> di tengah = hazard. <b>Tombol H</b> di bawahnya = klakson.<br>Tiga pin <code>30</code> hanya input dan tidak saling terhubung: 30 atas = input lampu utama, 30 tengah = input TAIL, 30 bawah = input hazard. <code>TAIL</code> kiri &amp; kanan: tersambung ke 30 tengah saat lampu TAIL atau HEAD. <code>L</code> (atas) = lampu dekat: tersambung ke 30 atas saat HEAD dan dim netral. <code>H</code> (atas) = lampu jauh: tersambung ke 30 atas saat HEAD dan dim J / T. <code>L/F</code> = input kedip dari terminal L flasher; diteruskan ke <code>L</code> (sein kiri) atau <code>R</code> (sein kanan) sesuai tuas / hazard. Pin <code>15</code> = jalur IG (lewat flasher). Hazard: 30 bawah tersambung ke <code>B/F</code>. <code>H</code> (bawah) = klakson, saat ditekan tersambung ke massa (Active LOW) untuk memicu pin 85 relay.</td></tr>
+      <tr><td>Pin wiper</td><td><b>Dari saklar wiper</b> (kotak kiri): pin 30 tersambung ke L (LOW), H (HIGH) atau 0 (OFF) sesuai tuas kiri; tombol bulat di kotak ini ikut mengganti posisi. <b>Menuju wiper</b> (baris 30, L, H, 0, E): hubungkan L, H, 0 dari kotak kiri, dan E ke massa. Motor berputar pelan jika L dapat +12 V, cepat jika H.</td></tr>
+      <tr><td>Relay (4 buah)</td><td>Koil aktif jika 86 mendapat +12 V dan 85 terhubung massa. Saat aktif, 30 &#8596; 87 tersambung (LED relay menyala).</td></tr>
+      <tr><td>Flasher</td><td>B diberi +12 V dan E ke massa. Pin L baru berdenyut jika L dikabel ke L/F dan tuas sein atau hazard digerakkan.</td></tr>
+      <tr><td>Switch rem</td><td>Pin 30 &#8596; 15 tersambung saat pedal diinjak. Ketuk batang hitam untuk injak / lepas.</td></tr>
+      <tr><td>Knob &amp; kunci</td><td>Saklar ON/OFF biasa: knob (30 &#8596; 15), kunci kontak (IG &#8596; 15) saat ON. Knob di samping kunci dipakai sebagai saklar lampu mundur.</td></tr>
+      <tr><td>Lampu plat nomor</td><td>Menyala jika pin 15 mendapat +12 V (misal dari pin TAIL) dan E terpasang massa.</td></tr>
+      <tr><td>Klakson</td><td>Berbunyi jika pin 30 mendapat +12 V dan pin E terpasang massa.</td></tr>
+      
+      <tr><td>Lampu kabut (bulat atas)</td><td>Menyala jika pin 30 mendapat +12 V dan E terpasang massa. Punya relay sendiri, dipicu bersama lampu jauh (H saklar kombinasi).</td></tr>
+      <tr><td>Lampu</td><td>Menyala jika pin sinyalnya mendapat +12 V dan pin E terpasang massa. Lampu kepala: L = dekat, H = jauh. Lampu kota/sein dan lampu belakang: LK = lampu kota, S = sein, REM = rem, R = mundur.</td></tr>
+    </table>
+    <p>Pemetaan pin saklar kombinasi mengikuti petunjuk. Jika di alat Anda berbeda, ubah di fungsi <code>build()</code> pada bagian script.</p>
+  </details>
+</div>
+<div id="zoomctl"><button id="zOut" title="Perkecil">&minus;</button><span id="zlbl">100%</span><button id="zIn" title="Perbesar">+</button><button id="zFit" title="Pas dengan lebar layar">Pas</button></div>
+<script>
+/* ============================================================
+   SIMULATOR WIRING SISTEM PENERANGAN
+   Koordinat memakai sistem gambar asli (viewBox 0 328 924 650)
+   ============================================================ */
+const NS = 'http://www.w3.org/2000/svg';
+const svg = document.getElementById('panel');
+const $id = (i) => document.getElementById(i);
+
+/* ---------- DATA PIN ---------- */
+const PINS = [];
+// P(id, x, y, kode, posisiLabel, {gnd, red, small})
+function P(id, x, y, code = '', pos = 'b', o = {}) {
+  PINS.push(Object.assign({ id, x, y, code, pos }, o));
+}
+// Kolom kiri (massa)
+P('gl0', 87, 404, 'E', 'l', { gnd: 1 });
+[434, 462, 490, 518, 546].forEach((y, i) => P('gl' + (i + 1), 87, y, '', 'b', { gnd: 1 }));
+// Lampu kota / sein kiri
+P('sl.E', 125, 545, 'E', 'b', { gnd: 1 }); P('sl.LK', 153, 545, 'LK'); P('sl.S', 183, 545, 'S');
+// Lampu kepala
+P('hl.L', 232, 545, 'L'); P('hl.E', 277, 545, 'E', 'b', { gnd: 1 }); P('hl.H', 324, 545, 'H');
+P('hr.L', 523, 545, 'L'); P('hr.E', 564, 545, 'E', 'b', { gnd: 1 }); P('hr.H', 612, 545, 'H');
+P('sr.LK', 668, 545, 'LK'); P('sr.S', 696, 545, 'S'); P('sr.E', 724, 545, 'E', 'b', { gnd: 1 });
+// Wiper (kolom kanan)
+P('wp.E', 763, 404, 'E', 'r', { gnd: 1 });
+[434, 462, 490, 518].forEach((y, i) => P('wp.' + (i + 1), 763, y, '', 'b', { gnd: 1 }));
+// Voltmeter
+P('g.30', 381, 393, '30'); P('g.E', 381, 423, 'E', 'b', { gnd: 1 });
+// Relay
+const RX = [373, 389, 405, 422, 438, 454, 470, 486];
+for (let k = 0; k < 4; k++) {
+  P(`r${k}.30`, RX[2 * k], 495, '30', 'b', { small: 1 });
+  P(`r${k}.87`, RX[2 * k + 1], 495, '87', 'b', { small: 1 });
+  P(`r${k}.85`, RX[2 * k], 527, '85', 'b', { small: 1 });
+  P(`r${k}.86`, RX[2 * k + 1], 527, '86', 'b', { small: 1 });
+}
+// Klakson & flasher
+P('hn.30', 166, 586, '30'); P('hn.E', 166, 616, 'E', 'b', { gnd: 1 });
+P('fl.E', 119, 714, 'E', 'b', { gnd: 1 }); P('fl.B', 141, 714, 'B'); P('fl.L', 165, 714, 'L');
+// Baterai
+[[242, 641], [267, 641], [242, 665], [267, 665], [242, 689], [267, 689]].forEach((c, i) => P('bt.' + (i + 1), c[0], c[1], '', 'b', { red: 1 }));
+P('bt.15', 230, 712, '15'); P('bt.B+', 260, 712, 'B+');
+P('ig.IG', 245, 746, 'IG');
+[[197, 'a'], [221, 'b'], [269, 'c'], [293, 'd']].forEach((c) => P('ig.' + c[1], c[0], 746, '', 'b', { red: 1 }));
+// Saklar kombinasi
+P('cs.30a', 429, 584, '30'); P('cs.15', 429, 609, '15'); P('cs.30b', 429, 634, '30'); P('cs.LF', 429, 659, 'L/F'); P('cs.30c', 429, 684, '30');
+P('cs.Lb', 399, 609, 'L'); P('cs.TAILl', 399, 634, 'TAIL'); P('cs.Ls', 399, 659, 'L'); P('cs.Hz', 399, 684, 'H');
+P('cs.Hb', 459, 609, 'H'); P('cs.TAILr', 459, 634, 'TAIL'); P('cs.Rs', 459, 659, 'R'); P('cs.BF', 459, 684, 'B/F');
+// Dimmer
+P('dA.L', 512, 648, 'L'); P('dA.H', 546, 648, 'H'); P('dA.30', 512, 676, '30'); P('dA.0', 546, 676, '0');
+P('dB.30', 567, 594, '30'); P('dB.L', 597, 594, 'L'); P('dB.H', 627, 594, 'H'); P('dB.0', 657, 594, '0'); P('dB.E', 687, 594, 'E', 'b', { gnd: 1 });
+// Sekring, knob, kunci, tombol
+P('fu.30', 736, 630, '30'); P('fu.15', 736, 662, '15');
+P('kn.30', 597, 719, '30'); P('kn.15', 629, 719, '15'); P('ky.IG', 658, 719, 'IG'); P('ky.15', 692, 719, '15');
+P('bn.15', 412, 778, '15'); P('bn.E', 444, 778, 'E', 'b', { gnd: 1 });
+// Lampu belakang
+P('tl.E', 98, 782, 'E', 't', { gnd: 1 }); P('tl.S', 134, 782, 'S', 't'); P('tl.LK', 195, 782, 'LK', 't'); P('tl.REM', 255, 782, 'REM', 't'); P('tl.R', 304, 782, 'R', 't');
+P('tr.R', 551, 782, 'R', 't'); P('tr.REM', 601, 782, 'REM', 't'); P('tr.LK', 660, 782, 'LK', 't'); P('tr.S', 721, 782, 'S', 't'); P('tr.E', 757, 782, 'E', 't', { gnd: 1 });
+P('bp.B+', 764, 853, 'B+', 't');
+
+const PIN = {}; PINS.forEach((p) => (PIN[p.id] = p));
+const PLUS_SRC = ['bp.B+']; // satu-satunya sumber aki: B+ pojok kanan bawah (pin 15 & B+ dekat sekring hanya titik petunjuk)
+// Baris IG (5 pin) bukan sumber aki: hanya bertegangan jika kunci ON dan dikabel dari pin IG kunci kontak
+// Sumber massa hanya kolom kiri (gl0..gl5). Pin E beban harus dikabel ke sini.
+const GND = PINS.filter((p) => p.gnd && /^(gl\d|wp\.[E1-4])$/.test(p.id)).map((p) => p.id);
+const PIN_NAME = {
+  gl: 'Massa', sl: 'Lampu kota/sein kiri', hl: 'Lampu kepala kiri', hr: 'Lampu kepala kanan', sr: 'Lampu kota/sein kanan',
+  wp: 'Motor wiper', g: 'Lampu kabut', hn: 'Klakson', fl: 'Flasher', bt: 'Baterai', ig: 'Kontak IG', cs: 'Saklar kombinasi',
+  dA: 'Dimmer A', dB: 'Dimmer B', fu: 'Sekring', kn: 'Saklar knob', ky: 'Kunci kontak', bn: 'Tombol oval',
+  tl: 'Lampu belakang kiri', tr: 'Lampu belakang kanan', bp: 'Baterai B+'
+};
+function pinName(id) {
+  const m = /^r(\d)\./.exec(id); if (m) return 'Relay ' + (+m[1] + 1);
+  return PIN_NAME[id.split('.')[0]] || 'Pin';
+}
+
+/* ---------- STATE ---------- */
+const S = { wires: [], lamp: 0, sein: 0, hazard: false, wiper: 0, dim: 0, horn: false, dimA: 0, dimB: 0, knob: false, key: false, brake: false, btn: false, flash: false };
+const LAMP_T = ['OFF', 'TAIL', 'HEAD'], SEIN_T = ['NETRAL', 'KIRI', 'KANAN'], DIM_T = ['L', 'H', '0'];
+const WIP_T = ['OFF', 'LOW', 'HIGH'], DM_T = ['NETRAL', 'JAUH', 'TEMBAK'];
+let wireColor = '#d32f2f';
+const COLORS = ['#d32f2f', '#212121', '#1e63d6', '#f2b705', '#2e9e4a', '#ef7d1a'];
+
+/* ---------- SIMULASI ---------- */
+function build(coil, flAct) {
+  const par = {};
+  PINS.forEach((p) => (par[p.id] = p.id));
+  const find = (a) => { while (par[a] !== a) { par[a] = par[par[a]]; a = par[a]; } return a; };
+  const uni = (a, b) => { a = find(a); b = find(b); if (a !== b) par[a] = b; };
+
+  S.wires.forEach((w) => uni(w.a, w.b));
+  if (S.knob) uni('kn.30', 'kn.15');
+  if (S.key) uni('ky.IG', 'ky.15');
+  ['ig.a', 'ig.b', 'ig.c', 'ig.d'].forEach((i) => uni('ig.IG', i));
+  [['bt.1', 'bt.2'], ['bt.3', 'bt.4'], ['bt.5', 'bt.6'], ['bt.15', 'bt.B+']].forEach(([a, b]) => uni(a, b)); // sekring: input (kiri) -> output (kanan)
+  if (S.brake) uni('fu.30', 'fu.15'); // switch rem: tersambung saat pedal diinjak
+  if (S.btn) uni('bn.15', 'bn.E');
+  uni('dA.30', ['dA.L', 'dA.H', 'dA.0'][[2, 0, 1][S.wiper]]); // tuas wiper: OFF = 0, LOW = L, HIGH = H
+  // Saklar kombinasi (sesuai petunjuk, ubah di sini bila berbeda)
+  // tiga pin 30 hanya input, tidak saling terhubung: atas = lampu utama (L/H), tengah = TAIL, bawah = hazard (B/F)
+  if (S.lamp >= 1) { uni('cs.30b', 'cs.TAILl'); uni('cs.30b', 'cs.TAILr'); } // TAIL aktif di posisi 1 & 2
+  if (S.lamp === 2) uni('cs.30a', S.dim === 0 ? 'cs.Lb' : 'cs.Hb');         // posisi 2: dekat (dim netral) / jauh (dim ditekan/ditarik)
+  if (S.hazard || S.sein === 1) uni('cs.LF', 'cs.Ls');                      // L/F -> kiri
+  if (S.hazard || S.sein === 2) uni('cs.LF', 'cs.Rs');                      // L/F -> kanan
+  if (S.hazard) uni('cs.30c', 'cs.BF');                                     // hazard: 30 -> B/F
+  if (S.horn) uni('cs.Hz', 'gl0');                                          // klakson: saklar massa (Active LOW)
+  coil.forEach((c, k) => { if (c) uni(`r${k}.30`, `r${k}.87`); });
+
+  const plus = new Set(), gnd = new Set();
+  PLUS_SRC.forEach((i) => plus.add(find(i)));
+  GND.forEach((i) => gnd.add(find(i)));
+  if (flAct && S.flash) plus.add(find('fl.L'));
+  return {
+    find, plus, gnd,
+    on: (id) => { const r = find(id); return plus.has(r) && !gnd.has(r); },
+    hasP: (id) => plus.has(find(id)),
+    hasG: (id) => gnd.has(find(id)),
+    short: (id) => { const r = find(id); return plus.has(r) && gnd.has(r); }
+  };
+}
+
+let R = null, COIL = [false, false, false, false], FLACT = false;
+function solve() {
+  let coil = [false, false, false, false], fl = false, res;
+  for (let it = 0; it < 10; it++) {
+    res = build(coil, fl);
+    const nc = [0, 1, 2, 3].map((k) => res.hasP(`r${k}.86`) && res.hasG(`r${k}.85`));
+    const nf = res.hasP('fl.B') && res.hasG('fl.E') && (S.hazard || S.sein > 0) && res.find('fl.L') === res.find('cs.LF');
+    if (nc.every((v, i) => v === coil[i]) && nf === fl) break;
+    coil = nc; fl = nf;
+  }
+  COIL = coil; FLACT = fl; R = res;
+  let shorted = false;
+  res.plus.forEach((r) => { if (res.gnd.has(r)) shorted = true; });
+  R.anyShort = shorted;
+  return R;
+}
+
+/* ---------- GAMBAR KOMPONEN ---------- */
+const zig = (cx, cy) => `M${cx - 9} ${cy} l3 -3 l3 6 l3 -6 l3 6 l3 -6 l3 3`;
+const ribs = (x, y, w, h, n, c = '#000', o = .14) => {
+  let s = '';
+  for (let i = 1; i < n; i++) s += `<line x1="${x + (w * i) / n}" y1="${y + 1}" x2="${x + (w * i) / n}" y2="${y + h - 1}" stroke="${c}" stroke-opacity="${o}"/>`;
+  return s;
+};
+
+function headlight(id, x) {
+  const cx = x + 65, cy = 462;
+  return `
+  <text class="cap" x="${cx}" y="408">HEAD LAMP</text>
+  <rect id="${id}-gl" class="fx" x="${x - 8}" y="412" width="146" height="134" rx="34" fill="#ffe27a" filter="url(#blur6)" opacity="0"/>
+  <rect x="${x}" y="420" width="130" height="118" rx="28" fill="url(#gHousing)" filter="url(#shadow)"/>
+  <rect x="${x + 6}" y="426" width="118" height="106" rx="23" fill="url(#gReflect)" stroke="#aeb6bf"/>
+  <circle cx="${cx}" cy="${cy}" r="41" fill="none" stroke="#fff" stroke-opacity=".5"/>
+  <circle cx="${cx}" cy="${cy}" r="34" fill="none" stroke="#6b7580" stroke-opacity=".3"/>
+  <circle cx="${cx}" cy="${cy}" r="26" fill="url(#gBowl)" stroke="#59616b" stroke-width="1.5"/>
+  <circle cx="${cx}" cy="${cy}" r="16" fill="#e9f3f7" fill-opacity=".6" stroke="#8c99a3"/>
+  <path d="${zig(cx, cy - 4)}" fill="none" stroke="#4a4f55" stroke-width="1.2"/>
+  <path d="${zig(cx, cy + 5)}" fill="none" stroke="#4a4f55" stroke-width="1.2"/>
+  <rect id="${id}-lens" class="fx" x="${x + 6}" y="426" width="118" height="106" rx="23" fill="#fff6c9" opacity="0"/>
+  <circle id="${id}-bL" class="fx" cx="${cx}" cy="${cy}" r="24" fill="url(#gGlowY)" opacity="0"/>
+  <circle id="${id}-bH" class="fx" cx="${cx}" cy="${cy}" r="42" fill="url(#gGlowY)" opacity="0"/>
+  <path d="M${x + 14} 440 q18 -10 44 -12" fill="none" stroke="#fff" stroke-opacity=".6" stroke-width="3" stroke-linecap="round"/>`;
+}
+
+function seinBox(id, x, w) {
+  return `
+  <text class="cap" x="${x + w / 2}" y="399">LAMPU KOTA</text><text class="cap" x="${x + w / 2}" y="534">LAMPU SEIN</text>
+  <rect id="${id}-glU" class="fx" x="${x - 5}" y="400" width="${w + 10}" height="86" rx="8" fill="#fff0a0" filter="url(#blur6)" opacity="0"/>
+  <rect id="${id}-glS" class="fx" x="${x - 5}" y="478" width="${w + 10}" height="50" rx="8" fill="#ffa000" filter="url(#blur6)" opacity="0"/>
+  <rect x="${x}" y="405" width="${w}" height="117" rx="5" fill="url(#gHousing)" filter="url(#shadow)"/>
+  <rect x="${x + 3}" y="408" width="${w - 6}" height="73" rx="3" fill="url(#gClear)"/>${ribs(x + 3, 408, w - 6, 73, 5)}
+  <rect x="${x + 3}" y="485" width="${w - 6}" height="34" rx="3" fill="url(#gAmberOff)"/>${ribs(x + 3, 485, w - 6, 34, 5)}
+  <rect id="${id}-LK" class="fx" x="${x + 3}" y="408" width="${w - 6}" height="73" rx="3" fill="#fff4b0" opacity="0"/>
+  <rect id="${id}-S" class="fx" x="${x + 3}" y="485" width="${w - 6}" height="34" rx="3" fill="#ffd24a" opacity="0"/>
+  <rect x="${x + 5}" y="410" width="3" height="68" rx="1.5" fill="#fff" fill-opacity=".45"/>`;
+}
+
+function tailLamp(id, segs) {
+  const x0 = segs[0][0] - 3, x1 = segs[segs.length - 1][0] + segs[segs.length - 1][1] + 3;
+  const col = { S: '#ffa000', K: '#ff2a1a', M: '#ff2a1a', R: '#ffffff' };
+  const off = { S: 'url(#gAmberOff)', K: 'url(#gRedOff)', M: 'url(#gRedOff)', R: 'url(#gClear)' };
+  const lit = { S: '#ffd24a', K: '#ff4a3a', M: '#ff4a3a', R: '#ffffff' };
+  let s = '';
+  segs.forEach(([x, w, t]) => (s += `<rect id="${id}-g${t}" class="fx" x="${x}" y="795" width="${w}" height="37" rx="4" fill="${col[t]}" filter="url(#blur6)" opacity="0"/>`));
+  s += `<rect x="${x0}" y="792" width="${x1 - x0}" height="43" rx="6" fill="url(#gHousing)" filter="url(#shadow)"/>`;
+  segs.forEach(([x, w, t]) => {
+    s += `<text class="cap" x="${x + w / 2}" y="847">${{ S: 'SEIN', K: 'KOTA', M: 'REM', R: 'MUNDUR' }[t]}</text>`;
+    s += `<rect x="${x + 1}" y="795" width="${w - 2}" height="37" rx="3" fill="${off[t]}"/>${ribs(x + 1, 795, w - 2, 37, Math.max(3, Math.round(w / 9)))}`;
+    s += `<rect id="${id}-${t}" class="fx" x="${x + 1}" y="795" width="${w - 2}" height="37" rx="3" fill="${lit[t]}" opacity="0"/>`;
+    s += `<rect x="${x + 3}" y="797" width="${w - 6}" height="4" rx="2" fill="#fff" fill-opacity=".3"/>`;
+  });
+  return s;
+}
+
+function gauge() {
+  const cx = 427, cy = 405;
+  return `
+  <path d="M412 438 L442 438 L447 446 L407 446 Z" fill="url(#gMetal)" stroke="#59616b"/>
+  <circle id="gk-gl" class="fx" cx="${cx}" cy="${cy}" r="42" fill="#ffe27a" filter="url(#blur6)" opacity="0"/>
+  <circle cx="${cx}" cy="${cy}" r="32" fill="url(#gHousing)" filter="url(#shadow)"/>
+  <circle cx="${cx}" cy="${cy}" r="29" fill="none" stroke="url(#gChrome)" stroke-width="2"/>
+  <circle cx="${cx}" cy="${cy}" r="27" fill="url(#gClear)"/>
+  <circle id="gk-lens" class="fx" cx="${cx}" cy="${cy}" r="27" fill="#fff4b0" opacity="0"/>
+  <path d="M${cx - 18} ${cy - 18} q18 -12 36 0" fill="none" stroke="#fff" stroke-opacity=".7" stroke-width="2"/>
+  <text class="cap" x="${cx}" y="366">LAMPU KABUT</text>`;
+}
+
+function relays() {
+  const xs = [366, 398, 431, 463];
+  return xs.map((x, k) => {
+    const cx = x + 15;
+    return `
+    <rect x="${x}" y="449" width="30" height="37" rx="3" fill="url(#gHousing)" filter="url(#shadow)"/>
+    <rect x="${x + 4}" y="453" width="22" height="9" rx="1.5" fill="#e9edf1"/>
+    <text x="${cx}" y="460" font-size="5.5" text-anchor="middle" fill="#222" font-weight="700">12V 30A</text>
+    <circle id="rl${k}-led" cx="${x + 24}" cy="467" r="2.6" fill="#244a2a"/>
+    <rect x="${x + 5}" y="471" width="8" height="8" fill="none" stroke="#9aa3ad" stroke-width=".8"/>
+    <line x1="${x + 5}" y1="475" x2="${x + 3}" y2="475" stroke="#9aa3ad" stroke-width=".8"/>
+    <circle cx="${x + 17}" cy="480" r="1.4" fill="#cdd4db"/><circle cx="${x + 25}" cy="480" r="1.4" fill="#cdd4db"/>
+    <line id="rl${k}-arm" x1="${x + 17}" y1="480" x2="${x + 25}" y2="473" stroke="#cdd4db" stroke-width="1.1" stroke-linecap="round"/>`;
+  }).join('');
+}
+
+function art() {
+  let s = '';
+  s += headlight('hl', 213) + headlight('hr', 506);
+  s += seinBox('sl', 132, 41) + seinBox('sr', 677, 42);
+  s += tailLamp('tl', [[128, 43, 'S'], [171, 40, 'K'], [211, 66, 'M'], [277, 45, 'R']]);
+  s += tailLamp('tr', [[533, 46, 'R'], [579, 66, 'M'], [645, 40, 'K'], [685, 43, 'S']]);
+  s += gauge() + relays();
+
+  // Klakson
+  s += `<g id="horn">
+    <rect x="118" y="626" width="15" height="9" rx="2" fill="url(#gMetal)" stroke="#59616b"/>
+    <circle cx="125" cy="602" r="26" fill="url(#gChrome)" stroke="#59616b" filter="url(#shadow)"/>
+    <circle cx="125" cy="602" r="21" fill="none" stroke="#3a4049" stroke-width="2"/>
+    <circle cx="125" cy="602" r="16" fill="none" stroke="#7b848e" stroke-width="1.6"/>
+    <circle cx="125" cy="602" r="11" fill="none" stroke="#7b848e" stroke-width="1.6"/>
+    <circle cx="125" cy="602" r="6" fill="#20242a"/><circle cx="123.5" cy="600.5" r="1.8" fill="#fff" fill-opacity=".6"/>
+    <g id="hornw" class="fx" opacity="0" fill="none" stroke="#e53935" stroke-width="2" stroke-linecap="round">
+      <path d="M155 588 q8 14 0 28"/><path d="M162 582 q13 20 0 40"/></g>
+  </g>
+  <text class="cap" x="125" y="647">KLAKSON</text>`;
+
+  // Flasher
+  s += `<rect x="132" y="673" width="26" height="29" rx="4" fill="url(#gMetal)" stroke="#59616b" filter="url(#shadow)"/>
+  <rect x="135" y="676" width="20" height="9" rx="2" fill="#20242a"/>
+  <circle id="flled" cx="145" cy="680.5" r="2.6" fill="#4a3a14"/>
+  <rect x="136" y="693" width="18" height="9" rx="1.5" fill="#3a4049"/>
+  <text class="cap" x="145" y="667">FLASHER</text>`;
+
+  // BATT
+  s += `<rect x="216" y="632" width="66" height="102" rx="7" fill="#eef1f4" stroke="#8c97a3" stroke-dasharray="4 3"/>
+  <text x="249" y="624" font-size="10" font-weight="700" text-anchor="middle" fill="#1f2a3a">FUSE/SEKRING BATT 12V</text>
+  <text x="242" y="654" font-size="6.5" text-anchor="middle" fill="#6b7787">IN</text><text x="267" y="654" font-size="6.5" text-anchor="middle" fill="#6b7787">OUT</text>`;
+
+  // Saklar kombinasi: tuas kiri = wiper, tuas kanan = lampu/sein/dim, tengah atas = hazard, tengah = klakson
+  s += `<rect x="389" y="705" width="81" height="49" rx="10" fill="url(#gHousing)" filter="url(#shadow)"/>
+  <g id="levL"><path d="M392 721 L338 719 L338 734 L392 732 Z" fill="url(#gHousing)" stroke="#0c0f13"/>
+    <rect x="316" y="718" width="24" height="17" rx="8" fill="#15181d" stroke="#000"/>${ribs(318, 718, 20, 17, 6, '#8a929c', .5)}</g>
+  <g id="levR"><path d="M467 721 L520 719 L520 734 L467 732 Z" fill="url(#gHousing)" stroke="#0c0f13"/>
+    <rect x="518" y="718" width="24" height="17" rx="8" fill="#15181d" stroke="#000"/>${ribs(520, 718, 20, 17, 6, '#8a929c', .5)}</g>
+  <circle cx="429" cy="738" r="11" fill="url(#gChrome)" stroke="#59616b"/>
+  <circle id="hbtn" cx="429" cy="738" r="7.5" fill="#2a2f36"/>
+  <text x="429" y="741" font-size="7" font-weight="700" text-anchor="middle" fill="#ffd54a" pointer-events="none">H</text>
+  <rect x="419" y="707" width="20" height="13" rx="2" fill="#2a2f36" stroke="#59616b"/>
+  <path id="hzt" d="M429 709.5 L435 718 L423 718 Z" fill="none" stroke="#ff4d3d" stroke-width="1.5" stroke-linejoin="round"/>
+  <text id="wipT" class="stat" x="352" y="753">OFF</text><text id="lampT" class="stat" x="505" y="745">LAMPU: OFF</text><text id="seinT" class="stat" x="505" y="755">SEIN: NETRAL</text>
+  <text class="cap" x="352" y="764">ATAS / BAWAH (WIPER)</text><text class="cap" x="505" y="765">PUTAR / TEKAN-TARIK / ATAS-BAWAH</text>
+  <circle cx="500" cy="704" r="8" fill="url(#gChrome)" stroke="#59616b"/><text id="dmT" x="500" y="707" font-size="8" font-weight="700" text-anchor="middle" fill="#222" pointer-events="none">N</text>
+  <text class="cap" x="520" y="707">DIM</text>
+  <text class="cap" x="404" y="747">HAZARD</text>`;
+
+  // Wiper: pin dari saklar wiper (A) & pin menuju wiper (B)
+  s += `<rect x="503" y="638" width="52" height="50" rx="7" fill="#eef1f4" stroke="#b0b8c1" stroke-dasharray="3 3"/>
+  <text class="cap" x="529" y="625">PIN WIPER DARI</text><text class="cap" x="529" y="633">SAKLAR WIPER</text>
+  <rect x="557" y="583" width="146" height="34" rx="8" fill="#eef1f4" stroke="#b0b8c1" stroke-dasharray="3 3"/>
+  <text class="cap" x="630" y="578">PIN WIPER MENUJU WIPER</text>
+  <circle cx="488" cy="662" r="11" fill="url(#gChrome)" stroke="#59616b" filter="url(#shadow)"/>
+  <circle cx="488" cy="662" r="7.5" fill="#2a2f36"/><text id="dAt" x="488" y="665" font-size="9" font-weight="700" text-anchor="middle" fill="#ffd54a">0</text>`;
+
+  // Switch rem
+  s += `<rect x="751" y="606" width="12" height="82" rx="3" fill="#8c97a3" stroke="#59616b"/>
+  <rect id="swrem" x="753" y="608" width="8" height="78" rx="2" fill="#20242a"/>
+  <text class="cap" x="757" y="601">SWITCH REM</text>`;
+
+  // Knob
+  s += `<rect x="603" y="672" width="8" height="9" rx="1" fill="#59616b"/>
+  <circle cx="607" cy="693" r="15" fill="url(#gChrome)" stroke="#59616b" filter="url(#shadow)"/>
+  <g id="knob"><circle cx="607" cy="693" r="10" fill="#20242a"/><rect x="605.5" y="684" width="3" height="9" rx="1.5" fill="#fff"/></g>
+  <text class="cap" x="607" y="667">SAKLAR</text><text id="knT" class="stat" x="607" y="710" style="display:none"></text>`;
+
+  // Kunci kontak
+  s += `<circle cx="675" cy="688" r="13" fill="url(#gChrome)" stroke="#59616b" filter="url(#shadow)"/>
+  <g id="key"><circle cx="675" cy="688" r="8.5" fill="#20242a"/><rect x="673.7" y="681" width="2.6" height="14" rx="1" fill="#e9edf1"/></g>
+  <text class="cap" x="675" y="670">KUNCI KONTAK</text>`;
+
+  // Lampu plat nomor
+  s += `<rect id="pl-gl" class="fx" x="394" y="796" width="60" height="38" rx="10" fill="#ffe27a" filter="url(#blur6)" opacity="0"/>
+  <rect x="400" y="800" width="48" height="28" rx="7" fill="url(#gHousing)" filter="url(#shadow)"/>
+  <rect x="404" y="804" width="40" height="20" rx="5" fill="url(#gClear)"/>
+  <rect id="pl-lens" class="fx" x="404" y="804" width="40" height="20" rx="5" fill="#fff4b0" opacity="0"/>
+  <text class="cap" x="424" y="845">LAMPU PLAT NOMOR</text>`;
+
+  // Wiper
+  s += `<rect x="802" y="397" width="83" height="14" rx="2" fill="url(#gHousing)"/>
+  <rect x="808" y="363" width="82" height="34" rx="14" fill="url(#gMetal)" stroke="#59616b" filter="url(#shadow)"/>
+  <rect x="876" y="366" width="12" height="28" rx="6" fill="#3a4049"/>
+  <circle cx="846" cy="379" r="12" fill="#2a2f36" stroke="#59616b"/>
+  <g id="rotor" stroke="#59616b" stroke-width="2.4" stroke-linecap="round"><line x1="835" y1="379" x2="857" y2="379" stroke="#ff7043"/><line x1="840.5" y1="369.5" x2="851.5" y2="388.5"/><line x1="840.5" y1="388.5" x2="851.5" y2="369.5"/></g>
+  <text x="846" y="383" font-size="12" font-weight="700" text-anchor="middle" fill="#ffd54a" pointer-events="none">M</text>
+  <g id="wiperArm"><line x1="822" y1="403" x2="852" y2="430" stroke="#2a2f36" stroke-width="4.5" stroke-linecap="round"/>
+    <circle cx="822" cy="403" r="4" fill="url(#gChrome)" stroke="#59616b"/><circle cx="852" cy="430" r="4" fill="url(#gChrome)" stroke="#59616b"/></g>
+  <text x="842" y="357" font-size="16" text-anchor="middle" fill="#1f2a3a">Wiper</text>`;
+
+  // Caption relay
+  s += `<text class="cap" x="429" y="556">RELAY</text><text class="cap" x="87" y="568">MASSA</text><text class="cap" x="763" y="542">MASSA</text><text class="cap" x="429" y="571">SAKLAR KOMBINASI</text>`;
+  return s;
+}
+
+/* ---------- HIT AREA KONTROL ---------- */
+function ctls() {
+  const r = (c, x, y, w, h) => `<rect class="ctl" data-ctl="${c}" x="${x}" y="${y}" width="${w}" height="${h}" rx="6" fill="transparent"/>`;
+  const c = (k, x, y, rr) => `<circle class="ctl" data-ctl="${k}" cx="${x}" cy="${y}" r="${rr}" fill="transparent"/>`;
+  return r('wiper', 314, 710, 78, 30) + r('sein', 467, 714, 52, 26) + r('lamp', 519, 714, 28, 26) + c('dim', 500, 704, 9) +
+    r('hazard', 417, 705, 24, 16) + c('horn', 429, 738, 12) +
+    c('dimA', 488, 662, 12) + r('fuse', 745, 604, 24, 88) +
+    c('knob', 607, 693, 15) + c('key', 675, 688, 13);
+}
+
+const CTL = {
+  wiper: () => (S.wiper = (S.wiper + 1) % 3),
+  lamp: () => (S.lamp = (S.lamp + 1) % 3),
+  sein: () => (S.sein = (S.sein + 1) % 3),
+  dim: () => (S.dim = (S.dim + 1) % 3),
+  hazard: () => (S.hazard = !S.hazard),
+  dimA: () => (S.wiper = (S.wiper + 1) % 3),
+  knob: () => (S.knob = !S.knob),
+  key: () => (S.key = !S.key),
+  fuse: () => (S.brake = !S.brake)
+};
+
+/* ---------- RENDER PIN ---------- */
+const pinsG = $id('pins'), wiresG = $id('wires'), dragG = $id('drag');
+function el(n, a) { const e = document.createElementNS(NS, n); for (const k in a) e.setAttribute(k, a[k]); return e; }
+const isBlack = (p) => { if (p.red) return false; const c = (p.code || '').toUpperCase(); return c === '' || c === 'E' || c === '85'; };
+
+function buildPins() {
+  PINS.forEach((p) => {
+    const g = el('g', { class: 'pin ' + (isBlack(p) ? 'black' : 'red'), 'data-id': p.id });
+    g.appendChild(el('title', {}));
+    g.appendChild(el('circle', { class: 'hit', cx: p.x, cy: p.y, r: 11 }));
+    g.appendChild(el('circle', { class: 'halo', cx: p.x, cy: p.y, r: 9.5 }));
+    g.appendChild(el('circle', { class: 'ring', cx: p.x, cy: p.y, r: 5.2 }));
+    g.appendChild(el('circle', { class: 'dot', cx: p.x, cy: p.y, r: 2.4 }));
+    if (p.code) {
+      const off = p.small ? 14 : 16;
+      let lx = p.x, ly = p.y, an = 'middle';
+      if (p.pos === 'b') ly = p.y + off; else if (p.pos === 't') ly = p.y - 10;
+      else if (p.pos === 'l') { lx = p.x - 13; ly = p.y + 4; an = 'end'; }
+      else if (p.pos === 'r') { lx = p.x + 13; ly = p.y + 4; an = 'start'; }
+      const t = el('text', { class: 'label' + (p.small ? ' s' : ''), x: lx, y: ly });
+      t.style.textAnchor = an; t.textContent = p.code; g.appendChild(t);
+    }
+    pinsG.appendChild(g);
+    p.node = g;
+  });
+}
+
+/* ---------- JALUR KABEL OTOMATIS: rapi, bengkok, lewat ruang kosong ---------- */
+const GC = 5, GW = 185, GH = 130, GY0 = 328;
+const OBS = [[60, 350, 400, 388], [395, 373, 459, 447], [209, 416, 347, 542], [502, 416, 640, 542], [128, 396, 177, 526], [673, 396, 723, 526],
+  [362, 445, 497, 489], [97, 574, 153, 637], [130, 671, 160, 704], [312, 703, 548, 768], [474, 648, 502, 676], [590, 676, 624, 710],
+  [660, 673, 690, 703], [747, 603, 767, 691], [392, 794, 456, 836], [124, 789, 326, 850], [529, 789, 731, 850], [798, 342, 894, 438]];
+const BASE = new Uint8Array(GW * GH), USED = new Uint8Array(GW * GH), used = USED;
+const NST = GW * GH * 4, GCOST = new Float32Array(NST), PAR = new Int32Array(NST), CL = new Uint8Array(NST);
+const DX = [1, 0, -1, 0], DY = [0, 1, 0, -1];
+function cellsNear(x, y, r, fn) {
+  const c0 = Math.floor((x - r) / GC), c1 = Math.floor((x + r) / GC), r0 = Math.floor((y - r - GY0) / GC), r1 = Math.floor((y + r - GY0) / GC);
+  for (let cy = r0; cy <= r1; cy++) for (let cx = c0; cx <= c1; cx++) {
+    if (cx < 0 || cy < 0 || cx >= GW || cy >= GH) continue;
+    if (Math.hypot((cx + .5) * GC - x, GY0 + (cy + .5) * GC - y) < r) fn(cy * GW + cx);
+  }
+}
+(function () {
+  for (let cy = 0; cy < GH; cy++) for (let cx = 0; cx < GW; cx++) {
+    const px = (cx + .5) * GC, py = GY0 + (cy + .5) * GC, i = cy * GW + cx;
+    if (px < 12 || px > 912 || py < 336 || py > 958) BASE[i] = 200;
+    OBS.forEach((o) => { if (px >= o[0] && px <= o[2] && py >= o[1] && py <= o[3]) BASE[i]++; });
+  }
+  PINS.forEach((p) => cellsNear(p.x, p.y, 6, (i) => BASE[i]++));
+})();
+function routePts(pa, pb) {
+  const sx = Math.floor(pa.x / GC), sy = Math.floor((pa.y - GY0) / GC), tx = Math.floor(pb.x / GC), ty = Math.floor((pb.y - GY0) / GC);
+  const own = [];
+  [pa, pb].forEach((p) => cellsNear(p.x, p.y, 6, (i) => { BASE[i]--; own.push(i); }));
+  GCOST.fill(1e9); CL.fill(0);
+  const hf = [], hi = [];
+  const push = (f, i) => { let k = hf.length; hf.push(f); hi.push(i); while (k > 0) { const q = (k - 1) >> 1; if (hf[q] <= f) break; hf[k] = hf[q]; hi[k] = hi[q]; k = q; } hf[k] = f; hi[k] = i; };
+  const pop = () => {
+    const i0 = hi[0], f = hf.pop(), i = hi.pop(), n = hf.length;
+    if (n > 0) { let k = 0; for (;;) { let c = 2 * k + 1; if (c >= n) break; if (c + 1 < n && hf[c + 1] < hf[c]) c++; if (hf[c] >= f) break; hf[k] = hf[c]; hi[k] = hi[c]; k = c; } hf[k] = f; hi[k] = i; }
+    return i0;
+  };
+  const h = (x, y) => Math.abs(x - tx) + Math.abs(y - ty);
+  for (let d = 0; d < 4; d++) { const id = (sy * GW + sx) * 4 + d; GCOST[id] = 0; PAR[id] = -1; push(h(sx, sy), id); }
+  let found = -1, steps = 0;
+  while (hf.length && steps++ < 160000) {
+    const id = pop(); if (CL[id]) continue; CL[id] = 1;
+    const cell = id >> 2, d = id & 3, cx = cell % GW, cy = (cell / GW) | 0;
+    if (cx === tx && cy === ty) { found = id; break; }
+    for (let nd = 0; nd < 4; nd++) {
+      if (nd === ((d + 2) & 3)) continue;
+      const nx = cx + DX[nd], ny = cy + DY[nd]; if (nx < 0 || ny < 0 || nx >= GW || ny >= GH) continue;
+      const c = ny * GW + nx;
+      if (BASE[c] > 0 && !(nx === tx && ny === ty)) continue;
+      const nid = c * 4 + nd; if (CL[nid]) continue;
+      const g = GCOST[id] + 1 + (nd !== d ? 3 : 0) + USED[c] * 3;
+      if (g < GCOST[nid]) { GCOST[nid] = g; PAR[nid] = id; push(g + h(nx, ny), nid); }
+    }
+  }
+  own.forEach((i) => BASE[i]++);
+  if (found < 0) return null;
+  const cells = []; for (let id = found; id !== -1; id = PAR[id]) cells.push(id >> 2);
+  cells.reverse();
+  cells.forEach((c) => {
+    USED[c] = Math.min(6, USED[c] + 2);
+    [c - 1, c + 1, c - GW, c + GW].forEach((n) => { if (n >= 0 && n < GW * GH) USED[n] = Math.min(6, USED[n] + 1); });
+  });
+  const pts = [];
+  cells.forEach((c, i) => {
+    const x = (c % GW + .5) * GC, y = GY0 + (((c / GW) | 0) + .5) * GC;
+    if (i === 0 || i === cells.length - 1 || cells[i] - cells[i - 1] !== cells[i + 1] - cells[i]) pts.push({ x, y });
+  });
+  return pts;
+}
+const NSEG = []; // segmen lurus kabel rapi yang sudah digambar (untuk lompatan di titik silang)
+function neatPath(P, r = 8, hop = 6) {
+  const q = [P[0]];
+  for (let i = 1; i < P.length; i++) if (Math.hypot(P[i].x - q[q.length - 1].x, P[i].y - q[q.length - 1].y) > 0.5) q.push(P[i]);
+  const n = q.length, f = (v) => v.toFixed(1), E = [], X = [];
+  for (let i = 0; i < n; i++) {
+    if (i === 0 || i === n - 1) { E.push(q[i]); X.push(q[i]); continue; }
+    const a = q[i - 1], b = q[i], c = q[i + 1];
+    const l1 = Math.hypot(b.x - a.x, b.y - a.y), l2 = Math.hypot(c.x - b.x, c.y - b.y), rr = Math.min(r, l1 / 2, l2 / 2);
+    E.push({ x: b.x - ((b.x - a.x) / l1) * rr, y: b.y - ((b.y - a.y) / l1) * rr });
+    X.push({ x: b.x + ((c.x - b.x) / l2) * rr, y: b.y + ((c.y - b.y) / l2) * rr });
+  }
+  let d = `M${f(q[0].x)} ${f(q[0].y)}`;
+  const mine = [];
+  for (let i = 0; i < n - 1; i++) {
+    const a = X[i], b = E[i + 1];
+    const horiz = Math.abs(a.y - b.y) < 0.6 && Math.abs(a.x - b.x) > 0.6, vert = Math.abs(a.x - b.x) < 0.6 && Math.abs(a.y - b.y) > 0.6;
+    if (horiz || vert) {
+      const dir = horiz ? Math.sign(b.x - a.x) : Math.sign(b.y - a.y), hits = [];
+      NSEG.forEach((s) => {
+        if (horiz && !s.h && s.c > Math.min(a.x, b.x) + hop + 2 && s.c < Math.max(a.x, b.x) - hop - 2 && a.y > s.a + 1 && a.y < s.b - 1) hits.push(s.c);
+        if (vert && s.h && s.c > Math.min(a.y, b.y) + hop + 2 && s.c < Math.max(a.y, b.y) - hop - 2 && a.x > s.a + 1 && a.x < s.b - 1) hits.push(s.c);
+      });
+      hits.sort((u, v) => (u - v) * dir);
+      let last = -1e9;
+      hits.forEach((c) => {
+        if (Math.abs(c - last) < 2 * hop + 2) return;
+        last = c;
+        const sw = dir > 0 ? 1 : 0;
+        d += horiz ? `L${f(c - dir * hop)} ${f(a.y)}A${hop} ${hop} 0 0 ${sw} ${f(c + dir * hop)} ${f(a.y)}` : `L${f(a.x)} ${f(c - dir * hop)}A${hop} ${hop} 0 0 ${sw} ${f(a.x)} ${f(c + dir * hop)}`;
+      });
+      mine.push(horiz ? { h: true, c: a.y, a: Math.min(a.x, b.x), b: Math.max(a.x, b.x) } : { h: false, c: a.x, a: Math.min(a.y, b.y), b: Math.max(a.y, b.y) });
+    }
+    d += `L${f(b.x)} ${f(b.y)}`;
+    if (i + 1 < n - 1) d += `Q${f(q[i + 1].x)} ${f(q[i + 1].y)} ${f(X[i + 1].x)} ${f(X[i + 1].y)}`;
+  }
+  mine.forEach((s) => NSEG.push(s));
+  return d;
+}
+// Kabel buatan sendiri tetap melengkung biasa; hanya kabel contoh rangkaian (w.neat) yang dirutekan rapi
+function routeD(w) {
+  const a = PIN[w.a], b = PIN[w.b];
+  if (!w.neat) return wirePath(a, b);
+  const pts = routePts(a, b);
+  if (!pts) return wirePath(a, b);
+  return neatPath([{ x: a.x, y: a.y }, ...pts, { x: b.x, y: b.y }]);
+}
+
+/* ---------- KABEL ---------- */
+function wirePath(a, b) {
+  const dx = b.x - a.x, dy = b.y - a.y, d = Math.hypot(dx, dy), sag = Math.min(70, 14 + d * 0.18);
+  return `M${a.x} ${a.y}C${a.x + dx * .25} ${a.y + dy * .25 + sag} ${a.x + dx * .75} ${a.y + dy * .75 + sag} ${b.x} ${b.y}`;
+}
+function drawWires() {
+  wiresG.innerHTML = '';
+  used.fill(0); NSEG.length = 0;
+  S.wires.forEach((w, i) => {
+    const d = routeD(w);
+    const g = el('g', { class: 'wire', 'data-i': i });
+    g.appendChild(el('path', { class: 'w-hit', d }));
+    g.appendChild(el('path', { class: 'w-out', d }));
+    g.appendChild(el('path', { class: 'w-core', d, stroke: w.c }));
+    g.appendChild(el('path', { class: 'w-shine', d }));
+    g.appendChild(el('path', { class: 'w-flow', d }));
+    wiresG.appendChild(g);
+  });
+}
+function addWire(a, b) {
+  if (!a || !b || a === b) return;
+  const i = S.wires.findIndex((w) => (w.a === a && w.b === b) || (w.a === b && w.b === a));
+  if (i >= 0) S.wires.splice(i, 1); else S.wires.push({ a, b, c: wireColor }); // pin yang sama lagi = lepas kabel
+  drawWires(); refresh();
+}
+
+/* ---------- VISUAL ---------- */
+const O = (id, v) => { const e = $id(id); if (e) e.style.opacity = v; };
+const T = (id, t) => { const e = $id(id); if (e && e.textContent !== t) e.textContent = t; };
+const ANG = { needle: -60, levL: 0, levR: 0, knob: 0, key: 0, wiper: 0 };
+const TGT = { needle: -60, levL: 0, levR: 0, knob: 0, key: 0 };
+const PIV = { needle: [427, 405], levL: [392, 727], levR: [467, 727], knob: [607, 693], key: [675, 688], wiperArm: [822, 403] };
+let wiperRun = false, wiperFast = false, hornOn = false;
+
+// Beban hanya aktif jika (+) dan E (massa) sama-sama terpasang
+const NEEDS_E = ['hl', 'hr', 'sl', 'sr', 'tl', 'tr', 'hn', 'g', 'bn', 'dB'];
+function applyVisuals() {
+  const on = (id) => { const k = id.split('.')[0]; return R.on(id) && (!NEEDS_E.includes(k) || R.hasG(k + '.E')); };
+  ['hl', 'hr'].forEach((id) => {
+    const L = on(id + '.L'), H = on(id + '.H');
+    O(id + '-bL', L ? 1 : 0); O(id + '-bH', H ? 1 : 0);
+    const lv = H && L ? .8 : H ? .7 : L ? .4 : 0;
+    O(id + '-lens', lv); O(id + '-gl', lv);
+  });
+  ['sl', 'sr'].forEach((id) => {
+    const a = on(id + '.LK') ? 1 : 0, b = on(id + '.S') ? 1 : 0;
+    O(id + '-LK', a * .85); O(id + '-glU', a * .6); O(id + '-S', b); O(id + '-glS', b * .8);
+  });
+  ['tl', 'tr'].forEach((id) => {
+    const s = on(id + '.S') ? 1 : 0, r = on(id + '.R') ? 1 : 0;
+    const m = on(id + '.REM') ? 1 : 0, kk = on(id + '.LK') ? 1 : 0;
+    O(id + '-S', s); O(id + '-gS', s * .8); O(id + '-R', r); O(id + '-gR', r * .8); O(id + '-M', m * .95); O(id + '-gM', m * .85); O(id + '-K', kk * .9); O(id + '-gK', kk * .8);
+  });
+  // Relay
+  for (let k = 0; k < 4; k++) {
+    const e = $id('rl' + k + '-led'); if (e) e.setAttribute('fill', COIL[k] ? '#43ff6a' : '#244a2a');
+    const a = $id('rl' + k + '-arm'); if (a) a.setAttribute('y2', COIL[k] ? 480 : 473);
+  }
+  const fe = $id('flled'); if (fe) fe.setAttribute('fill', FLACT && S.flash ? '#ffb300' : '#4a3a14');
+  // Voltmeter
+  const gk = on('g.30') ? 1 : 0, pl = on('bn.15') ? 1 : 0;
+  O('gk-lens', gk * .85); O('gk-gl', gk * .7); O('pl-lens', pl * .9); O('pl-gl', pl * .8);
+  // Saklar
+  TGT.levL = [0, -9, 9][S.wiper]; TGT.levR = [0, -9, 9][S.sein];
+  TGT.knob = S.knob ? 55 : 0; TGT.key = S.key ? 90 : 0;
+  T('wipT', WIP_T[S.wiper]); T('lampT', 'LAMPU: ' + LAMP_T[S.lamp]); T('seinT', 'SEIN: ' + SEIN_T[S.sein]);
+  T('dmT', ['N', 'J', 'T'][S.dim]);
+  T('dAt', DIM_T[[2, 0, 1][S.wiper]]);
+  const hz = $id('hzt'); if (hz) { hz.setAttribute('fill', S.hazard ? '#ff4d3d' : 'none'); }
+  const hb = $id('hbtn'); if (hb) hb.setAttribute('r', S.horn ? 6 : 7.5);
+  const swr = $id('swrem'); if (swr) swr.setAttribute('fill', S.brake ? '#e53935' : '#20242a');
+  const bc = $id('btnCap'); if (bc) { bc.setAttribute('ry', S.btn ? 9 : 11); bc.setAttribute('cy', S.btn ? 814 : 812); bc.style.filter = S.btn ? 'brightness(.75)' : ''; }
+  // Motor & klakson
+  wiperRun = on('dB.L') || on('dB.H'); wiperFast = on('dB.H');
+  const hn = on('hn.30'); O('hornw', hn ? 1 : 0); hornOn = hn; hornSound(hn);
+  // Pin & kabel
+  PINS.forEach((p) => {
+    const hot = R.on(p.id), bad = R.short(p.id);
+    p.node.classList.toggle('hot', hot && !bad); p.node.classList.toggle('bad', bad);
+    p.node.firstChild.textContent = `${pinName(p.id)} \u2022 ${p.code || 'pin'} \u2022 ` + (bad ? 'KORSLET' : hot ? '+12 V' : R.hasG(p.id) ? '0 V (massa)' : '0 V');
+  });
+  wiresG.querySelectorAll('.wire').forEach((g) => {
+    const w = S.wires[+g.getAttribute('data-i')];
+    g.classList.toggle('live', R.on(w.a)); g.classList.toggle('short', R.short(w.a));
+  });
+  // Status
+  const st = [`Wiper: <b>${WIP_T[S.wiper]}</b>`, `Lampu: <b>${LAMP_T[S.lamp]}</b>`, `Sein: <b>${SEIN_T[S.sein]}</b>`, `Dim: <b>${DM_T[S.dim]}</b>`, `Hazard: <b>${S.hazard ? 'ON' : 'OFF'}</b>`,
+    `Knob: <b>${S.knob ? 'ON' : 'OFF'}</b>`, `Kunci: <b>${S.key ? 'ON' : 'OFF'}</b>`,
+    `Switch rem: <b>${S.brake ? 'DIINJAK' : 'LEPAS'}</b>`, `Kabel: <b>${S.wires.length}</b>`];
+  $id('status').innerHTML = st.join(' &nbsp;\u2022&nbsp; ') + (R.anyShort ? '<br><span class="warn">\u26A0 KORSLET! +12 V bertemu massa. Lepas kabel yang salah.</span>' : '');
+}
+
+function refresh() { solve(); applyVisuals(); save(); }
+
+/* ---------- ANIMASI ---------- */
+let last = 0, wph = 0, wob = 0, rotA = 0, rotV = 0, armP = 0;
+function rot(id, a, c) { const e = $id(id); if (e) e.setAttribute('transform', `rotate(${a.toFixed(2)} ${c[0]} ${c[1]})`); }
+function loop(t) {
+  const dt = Math.min(0.05, (t - last) / 1000 || 0); last = t;
+  const k = 1 - Math.pow(0.0005, dt);
+  for (const n in TGT) ANG[n] += (TGT[n] - ANG[n]) * k;
+  rot('needle', ANG.needle, PIV.needle); rot('levL', ANG.levL, PIV.levL); rot('levR', ANG.levR, PIV.levR);
+  rot('knob', ANG.knob, PIV.knob); rot('key', ANG.key, PIV.key);
+  rotV += ((wiperRun ? (wiperFast ? 1200 : 600) : 0) - rotV) * (1 - Math.pow(0.02, dt)); rotA = (rotA + rotV * dt) % 360;
+  rot('rotor', rotA, [846, 379]);
+  // tuas wiper ikut bergerak menyapu mengikuti putaran motor, dan kembali ke posisi parkir saat motor mati
+  let sp = rotV * 0.35;
+  if (!wiperRun) { const m = armP % 360; if (m > 0.5) sp = Math.max(sp, 120); else { armP = 0; sp = 0; } }
+  armP = (armP + sp * dt) % 360;
+  ANG.wiper = 30 * (0.5 - 0.5 * Math.cos((armP * Math.PI) / 180));
+  rot('wiperArm', ANG.wiper, PIV.wiperArm);
+  const h = $id('horn');
+  if (h) { wob += dt * 80; h.setAttribute('transform', hornOn ? `translate(${(Math.sin(wob) * 0.9).toFixed(2)} ${(Math.cos(wob * 1.3) * 0.6).toFixed(2)})` : ''); }
+  requestAnimationFrame(loop);
+}
+
+/* ---------- SUARA KLAKSON ---------- */
+let AC = null, hornNodes = null;
+function audioInit() {
+  if (!AC) { try { AC = new (window.AudioContext || window.webkitAudioContext)(); } catch (e) { } }
+  if (AC && AC.state === 'suspended') AC.resume();
+}
+function hornSound(on) {
+  if (!AC) return;
+  if (on && !hornNodes) {
+    const g = AC.createGain(); g.gain.value = 0.06; g.connect(AC.destination);
+    const o1 = AC.createOscillator(), o2 = AC.createOscillator();
+    o1.type = 'sawtooth'; o2.type = 'square'; o1.frequency.value = 410; o2.frequency.value = 495;
+    o1.connect(g); o2.connect(g); o1.start(); o2.start(); hornNodes = { o1, o2, g };
+  } else if (!on && hornNodes) {
+    try { hornNodes.o1.stop(); hornNodes.o2.stop(); } catch (e) { }
+    hornNodes = null;
+  }
+}
+
+/* ---------- INTERAKSI ---------- */
+function toSvg(e) { const pt = svg.createSVGPoint(); pt.x = e.clientX; pt.y = e.clientY; return pt.matrixTransform(svg.getScreenCTM().inverse()); }
+let startId = null, pending = null, dragging = false, startXY = null, dragPath = null;
+function setPending(id) {
+  if (pending) PIN[pending].node.classList.remove('sel');
+  pending = id; if (id) PIN[id].node.classList.add('sel');
+}
+pinsG.addEventListener('pointerdown', (e) => {
+  audioInit();
+  const g = e.target.closest('.pin'); if (!g) return;
+  e.preventDefault();
+  const id = g.getAttribute('data-id');
+  if (pending && pending !== id) { const a = pending; setPending(null); addWire(a, id); return; }
+  startId = id; dragging = false; startXY = { x: e.clientX, y: e.clientY };
+});
+window.addEventListener('pointermove', (e) => {
+  if (!startId) return;
+  if (!dragging && Math.hypot(e.clientX - startXY.x, e.clientY - startXY.y) > 5) {
+    dragging = true; setPending(null);
+    dragPath = el('path', { class: 'w-drag' }); dragG.appendChild(dragPath);
+  }
+  if (dragging) {
+    const p = toSvg(e), a = PIN[startId];
+    dragPath.setAttribute('d', wirePath(a, { x: p.x, y: p.y }));
+  }
+});
+window.addEventListener('pointerup', (e) => {
+  if (S.btn) { S.btn = false; refresh(); }
+  if (S.horn) { S.horn = false; refresh(); }
+  if (!startId) return;
+  const id = startId; startId = null;
+  if (dragPath) { dragPath.remove(); dragPath = null; }
+  if (dragging) {
+    dragging = false;
+    const t = document.elementFromPoint(e.clientX, e.clientY), g = t && t.closest && t.closest('.pin');
+    if (g) addWire(id, g.getAttribute('data-id'));
+  } else {
+    setPending(pending === id ? null : id);
+  }
+});
+window.addEventListener('pointercancel', () => {
+  startId = null; dragging = false; if (dragPath) { dragPath.remove(); dragPath = null; }
+  if (S.btn) { S.btn = false; refresh(); }
+  if (S.horn) { S.horn = false; refresh(); }
+});
+
+$id('ctls').addEventListener('pointerdown', (e) => {
+  audioInit();
+  const c = e.target.closest('.ctl'); if (!c) return;
+  const k = c.getAttribute('data-ctl');
+  if (k === 'btn') { S.btn = true; refresh(); }
+  else if (k === 'horn') { S.horn = true; refresh(); }
+});
+$id('ctls').addEventListener('click', (e) => {
+  const c = e.target.closest('.ctl'); if (!c) return;
+  const k = c.getAttribute('data-ctl'); if (CTL[k]) { CTL[k](); refresh(); }
+});
+svg.addEventListener('pointerdown', (e) => { if (!e.target.closest('.pin') && pending) setPending(null); });
+
+/* ---------- TOOLBAR & CONTOH ---------- */
+const colorsEl = $id('colors');
+COLORS.forEach((c, i) => {
+  const b = document.createElement('button');
+  b.className = 'sw' + (i === 0 ? ' on' : ''); b.style.background = c; b.title = 'Warna kabel';
+  b.addEventListener('click', () => { wireColor = c; colorsEl.querySelectorAll('.sw').forEach((x) => x.classList.remove('on')); b.classList.add('on'); });
+  colorsEl.appendChild(b);
+});
+
+const R_ = '#d32f2f', K_ = '#212121', B_ = '#1e63d6', Y_ = '#f2b705', G_ = '#2e9e4a', O_ = '#ef7d1a';
+// Kabel negatif: hubungkan pin E beban ke kolom massa kiri
+const GE = (...ids) => ids.map((i, n) => [i, 'gl' + ((n % 5) + 1), K_]);
+const KEYF = [['bp.B+', 'ky.15', R_], ['ky.IG', 'ig.IG', R_], ['ig.a', 'bt.1', R_]]; // B+ pojok -> kunci kontak -> IG bawah sekring -> input sekring
+const FULL = {
+  n: 'Full rangkaian', note: 'Semua sistem terpasang: low (relay 1), high (relay 2), lampu kabut (relay 3), klakson (relay 4), kota + plat nomor, sein / hazard, rem, mundur, wiper. Kunci ON, lampu HEAD. Ketuk tuas, DIM, kunci, knob, switch rem, atau tekan tombol H untuk mencoba.',
+  st: { key: true, lamp: 2, dim: 0 },
+  w: [
+    ['bp.B+', 'ky.15', R_], ['ky.IG', 'ig.IG', R_], ['ig.a', 'bt.1', R_], ['ig.b', 'bt.3', R_], ['bp.B+', 'bt.5', R_], ['bp.B+', 'bt.15', R_], ['bp.B+', 'cs.30c', R_],
+    ['bt.2', 'cs.30a', R_], ['bt.2', 'cs.30b', R_], ['bt.2', 'kn.30', R_],
+    ['bt.4', 'r0.30', R_], ['bt.4', 'r1.30', R_], ['bt.4', 'r2.30', R_], ['bt.4', 'fl.B', R_], ['bt.4', 'dA.30', R_],
+    ['bt.6', 'r3.86', R_], ['bt.6', 'r3.30', R_], ['bt.B+', 'fu.15', R_],
+    ['cs.Lb', 'r0.86', Y_], ['r0.87', 'hl.L', G_], ['r0.87', 'hr.L', G_],
+    ['cs.Hb', 'r1.86', Y_], ['r1.87', 'hl.H', G_], ['r1.87', 'hr.H', G_],
+    ['cs.Hb', 'r2.86', Y_], ['r2.87', 'g.30', G_],
+    ['cs.TAILl', 'sl.LK', Y_], ['cs.TAILl', 'tl.LK', Y_], ['cs.TAILr', 'sr.LK', Y_], ['cs.TAILr', 'tr.LK', Y_], ['cs.TAILr', 'bn.15', Y_],
+    ['cs.BF', 'fl.B', O_], ['fl.L', 'cs.LF', Y_], ['cs.Ls', 'sl.S', O_], ['cs.Ls', 'tl.S', O_], ['cs.Rs', 'sr.S', O_], ['cs.Rs', 'tr.S', O_],
+    ['fu.30', 'tl.REM', B_], ['fu.30', 'tr.REM', B_], ['kn.15', 'tl.R', B_], ['kn.15', 'tr.R', B_],
+    ['r3.85', 'cs.Hz', B_], ['r3.87', 'hn.30', Y_],
+    ['dA.L', 'dB.L', G_], ['dA.H', 'dB.H', O_], ['dA.0', 'dB.0', B_],
+    ['r0.85', 'gl1', K_], ['r1.85', 'gl2', K_], ['r2.85', 'gl0', K_], ['hl.E', 'gl3', K_], ['sl.E', 'gl4', K_], ['tl.E', 'gl5', K_], ['g.E', 'gl0', K_], ['hn.E', 'gl1', K_],
+    ['hr.E', 'wp.2', K_], ['sr.E', 'wp.3', K_], ['tr.E', 'wp.4', K_], ['bn.E', 'wp.4', K_], ['fl.E', 'wp.E', K_], ['dB.E', 'wp.1', K_]
+  ]
+};
+const PRESETS = [
+  FULL,
+  { n: 'Lampu kota', note: 'B+ ke kunci kontak ke sekring ke pin 30 tengah saklar kombinasi. Dari TAIL ke LK masing-masing, plus lampu plat nomor. Tuas lampu di TAIL.',
+    st: { key: true, lamp: 1 }, w: [...KEYF, ['bt.2', 'cs.30b', R_], ['cs.TAILl', 'sl.LK', Y_], ['cs.TAILl', 'tl.LK', Y_], ['cs.TAILr', 'sr.LK', Y_], ['cs.TAILr', 'tr.LK', Y_], ['cs.TAILr', 'bn.15', Y_], ...GE('sl.E', 'tl.E', 'sr.E', 'tr.E', 'bn.E')] },
+  { n: 'Head lamp low', note: 'B+ ke kunci ke sekring ke 30 saklar kombinasi. Dari L saklar ke 86 relay, sekring lagi ke 30 relay, E ke 85 relay, 87 relay ke L head lamp kiri dan kanan (paralel). Tuas lampu di HEAD, dim netral.',
+    st: { key: true, lamp: 2, dim: 0 }, w: [...KEYF, ['bt.2', 'cs.30a', R_], ['cs.Lb', 'r0.86', Y_], ['ig.b', 'bt.3', R_], ['bt.4', 'r0.30', R_], ['r0.85', 'gl1', K_], ['r0.87', 'hl.L', G_], ['r0.87', 'hr.L', G_], ...GE('hl.E', 'hr.E')] },
+  { n: 'Head lamp high', note: 'Sama seperti low, tetapi dari H saklar kombinasi ke 86 relay, 87 relay 1 ke H head lamp. Lampu kabut punya relay sendiri (relay 2) yang dipicu H saklar juga. Tuas lampu di HEAD, ketuk DIM ke J.',
+    st: { key: true, lamp: 2, dim: 1 }, w: [...KEYF, ['bt.2', 'cs.30a', R_], ['cs.Hb', 'r0.86', Y_], ['cs.Hb', 'r1.86', Y_], ['ig.b', 'bt.3', R_], ['bt.4', 'r0.30', R_], ['bt.4', 'r1.30', R_], ['r0.85', 'gl1', K_], ['r1.85', 'gl2', K_], ['r0.87', 'hl.H', G_], ['r0.87', 'hr.H', G_], ['r1.87', 'g.30', G_], ...GE('hl.E', 'hr.E', 'g.E')] },
+  { n: 'Sein / hazard', note: 'B+ ke kunci ke sekring ke B flasher; E flasher ke E pojok kanan; L flasher ke L/F saklar; L ke sein kiri, R ke sein kanan. Ketuk badan tuas kanan atau kotak hazard.',
+    st: { key: true, sein: 1 }, w: [...KEYF, ['bt.2', 'fl.B', R_], ['bp.B+', 'cs.30c', R_], ['cs.BF', 'fl.B', R_], ['fl.E', 'wp.E', K_], ['fl.L', 'cs.LF', Y_], ['cs.Ls', 'sl.S', O_], ['cs.Ls', 'tl.S', O_], ['cs.Rs', 'sr.S', O_], ['cs.Rs', 'tr.S', O_], ...GE('sl.E', 'tl.E', 'sr.E', 'tr.E')] },
+  { n: 'Lampu rem', note: 'B+ ke 15 sekring, B+ sekring ke 15 switch rem, 30 switch rem ke lampu rem kiri dan kanan (paralel). Ketuk batang switch rem untuk menginjak pedal.',
+    st: {}, w: [['bp.B+', 'bt.15', R_], ['bt.B+', 'fu.15', R_], ['fu.30', 'tl.REM', Y_], ['fu.30', 'tr.REM', Y_], ...GE('tl.E', 'tr.E')] },
+  { n: 'Lampu mundur', note: 'B+ ke kunci ke sekring ke saklar di samping kunci (knob), lalu ke lampu mundur kiri dan kanan. Ketuk knob untuk ON.',
+    st: { key: true }, w: [...KEYF, ['bt.2', 'kn.30', R_], ['kn.15', 'tl.R', B_], ['kn.15', 'tr.R', B_], ...GE('tl.E', 'tr.E')] },
+  { n: 'Klakson (relay)', note: 'Tekan dan tahan tombol H di tengah saklar kombinasi: pin H bawah terhubung massa, koil relay 1 aktif, klakson berbunyi.',
+    st: {}, w: [['bp.B+', 'bt.1', R_], ['bp.B+', 'bt.3', R_], ['bt.2', 'r0.86', R_], ['r0.85', 'cs.Hz', B_], ['bt.4', 'r0.30', R_], ['r0.87', 'hn.30', Y_], ...GE('hn.E')] },
+  { n: 'Wiper', note: 'B+ ke kunci ke sekring ke pin 30 saklar wiper. Ketuk tuas kiri untuk OFF / LOW / HIGH. Motor berputar jika E motor terpasang.',
+    st: { key: true, wiper: 1 }, w: [...KEYF, ['bt.2', 'dA.30', Y_], ['dA.L', 'dB.L', G_], ['dA.H', 'dB.H', O_], ['dA.0', 'dB.0', B_], ...GE('dB.E')] }
+];
+const presetsEl = $id('presets');
+PRESETS.forEach((p) => {
+  const b = document.createElement('button'); b.textContent = p.n;
+  b.addEventListener('click', () => { audioInit(); resetStates(); S.wires = p.w.map((w) => ({ a: w[0], b: w[1], c: w[2], neat: true })); Object.assign(S, p.st); $id('note').textContent = p.note; drawWires(); refresh(); });
+  presetsEl.appendChild(b);
+});
+function resetStates() { Object.assign(S, { wiper: 0, dim: 0, horn: false, lamp: 0, sein: 0, hazard: false, dimA: 0, dimB: 0, knob: false, key: false, brake: false, btn: false }); }
+$id('btnClear').addEventListener('click', () => { S.wires = []; $id('note').textContent = ''; drawWires(); refresh(); });
+$id('btnReset').addEventListener('click', () => { S.wires = []; resetStates(); $id('note').textContent = ''; drawWires(); refresh(); });
+
+/* ---------- SIMPAN ---------- */
+const KEY = 'wiring-penerangan-v4';
+function save() { try { localStorage.setItem(KEY, JSON.stringify({ wires: S.wires, wiper: S.wiper, dim: S.dim, lamp: S.lamp, sein: S.sein, hazard: S.hazard, dimA: S.dimA, dimB: S.dimB, knob: S.knob, key: S.key, brake: S.brake })); } catch (e) { } }
+function load() {
+  try {
+    const d = JSON.parse(localStorage.getItem(KEY) || 'null'); if (!d) return;
+    S.wires = (d.wires || []).filter((w) => PIN[w.a] && PIN[w.b]);
+    ['wiper', 'dim', 'lamp', 'sein', 'hazard', 'dimA', 'dimB', 'knob', 'key', 'brake'].forEach((k) => { if (d[k] !== undefined) S[k] = d[k]; });
+  } catch (e) { }
+}
+
+/* ---------- MULAI ---------- */
+$id('art').innerHTML = art();
+$id('ctls').innerHTML = ctls();
+buildPins();
+load();
+drawWires();
+// Flasher berdenyut
+setInterval(() => { S.flash = !S.flash; if (FLACT) refresh(); else applyVisuals(); }, 420);
+refresh();
+// posisi awal animasi langsung sesuai target
+for (const n in TGT) ANG[n] = TGT[n];
+requestAnimationFrame(loop);
+
+/* ---------- ZOOM (pojok kanan bawah) ---------- */
+let ZOOM = 1;
+function applyZoom(z) {
+  ZOOM = Math.min(1.6, Math.max(0.3, Math.round(z * 100) / 100));
+  const pw = Math.round(924 * ZOOM), ph = Math.round(650 * ZOOM);
+  svg.style.width = pw + 'px'; svg.style.height = ph + 'px'; svg.style.minWidth = pw + 'px';
+  const ww = Math.max(pw, Math.min(924, window.innerWidth));
+  document.querySelector('.wrap').style.width = ww + 'px';
+  document.body.style.minWidth = ww + 'px';
+  $id('zlbl').textContent = Math.round(ZOOM * 100) + '%';
+  try { localStorage.setItem('wiring-zoom', String(ZOOM)); } catch (e) { }
+}
+$id('zOut').addEventListener('click', () => applyZoom(ZOOM - 0.1));
+$id('zIn').addEventListener('click', () => applyZoom(ZOOM + 0.1));
+$id('zFit').addEventListener('click', () => applyZoom((window.innerWidth - 4) / 924));
+window.addEventListener('resize', () => applyZoom(ZOOM));
+let z0 = 1; try { z0 = parseFloat(localStorage.getItem('wiring-zoom')) || 1; } catch (e) { }
+applyZoom(z0);
+</script>
+</body>
+</html>
